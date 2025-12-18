@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faction Gym Leaderboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .podium {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .podium-item {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        
+        .podium-item:hover {
+            transform: translateY(-5px);
+        }
+        
+        .podium-item.first {
+            order: 2;
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        }
+        
+        .podium-item.second {
+            order: 1;
+        }
+        
+        .podium-item.third {
+            order: 3;
+        }
+        
+        .rank {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .username {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .energy {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .rank-col {
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .error {
+            background: #ff4757;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .podium {
+                grid-template-columns: 1fr;
+            }
+            
+            .podium-item.first,
+            .podium-item.second,
+            .podium-item.third {
+                order: initial;
+            }
+            
+            th, td {
+                padding: 10px 5px;
+                font-size: 0.9em;
+            }
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏋️ Gym Energy Leaderboard</h1>
+            <div class="status" id="status">Loading...</div>
+        </div>
+        
+        <div id="error" class="error" style="display:none;"></div>
+        
+        <div class="podium" id="podium"></div>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="rank-col">Rank</th>
+                        <th>Username</th>
+                        <th>Energy Spent</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body"></tbody>
+            </table>
+        </div>
+        
+        <div class="last-updated" id="last-updated"></div>
+    </div>
+    
+    <script>
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch('data/leaderboard.json');
+                if (!response.ok) throw new Error('Failed to load data');
+                
+                const data = await response.json();
+                
+                // Check if competition ended
+                const endDate = new Date(data.config.endDate);
+                const now = new Date();
+                const isEnded = now > endDate;
+                
+                // Update status
+                const statusEl = document.getElementById('status');
+                if (isEnded) {
+                    statusEl.textContent = '🏁 Competition Ended';
+                    statusEl.style.background = 'rgba(255, 71, 87, 0.8)';
+                } else {
+                    statusEl.textContent = '🔥 Competition Active';
+                    statusEl.style.background = 'rgba(39, 174, 96, 0.8)';
+                }
+                
+                // Sort contributors by energy spent
+                const sorted = data.contributors
+                    .filter(c => c.value > 0)
+                    .sort((a, b) => b.value - a.value);
+                
+                // Display top 3 podium
+                const podiumEl = document.getElementById('podium');
+                podiumEl.innerHTML = '';
+                
+                const medals = ['🥇', '🥈', '🥉'];
+                const classes = ['first', 'second', 'third'];
+                
+                for (let i = 0; i < Math.min(3, sorted.length); i++) {
+                    const item = sorted[i];
+                    const div = document.createElement('div');
+                    div.className = `podium-item ${classes[i]}`;
+                    div.innerHTML = `
+                        <div class="rank">${medals[i]}</div>
+                        <div class="username">${item.username}</div>
+                        <div class="energy">${item.value.toLocaleString()}</div>
+                    `;
+                    podiumEl.appendChild(div);
+                }
+                
+                // Display full table
+                const tbody = document.getElementById('leaderboard-body');
+                tbody.innerHTML = '';
+                
+                sorted.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="rank-col">${index + 1}</td>
+                        <td>${item.username}</td>
+                        <td>${item.value.toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Show last updated time
+                const lastUpdatedEl = document.getElementById('last-updated');
+                if (data.lastUpdated) {
+                    const date = new Date(data.lastUpdated);
+                    lastUpdatedEl.textContent = `Last updated: ${date.toLocaleString()}`;
+                }
+                
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = 'Failed to load leaderboard. Please try again later.';
+                errorEl.style.display = 'block';
+            }
+        }
+        
+        // Load on page load
+        loadLeaderboard();
+    </script>
+</body>
+</html>
