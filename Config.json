@@ -1,0 +1,5 @@
+{
+"startDate": "2024-12-18T00:00:00Z",
+"endDate": "2025-01-18T23:59:59Z",
+"apiEndpoint": "https://api.torn.com/v2/faction/contributors?stat=gymenergy&cat=current&comment=Olu"
+}

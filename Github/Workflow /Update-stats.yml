@@ -1,0 +1,52 @@
+name: Update Leaderboard
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [main]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Update Stats
+        env:
+          TORN_API_KEY: ${{ secrets.TORN_API_KEY }}
+        run: |
+          # Load config
+          START_DATE=$(jq -r '.startDate' config.json)
+          END_DATE=$(jq -r '.endDate' config.json)
+          API_URL=$(jq -r '.apiEndpoint' config.json)
+          
+          # Check if competition ended
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ "$NOW" > "$END_DATE" ]]; then
+            echo "Competition ended, skipping update"
+            exit 0
+          fi
+          
+          # Fetch from API
+          RESPONSE=$(curl -s "${API_URL}&key=${TORN_API_KEY}")
+          
+          # Create updated JSON
+          echo "{
+            \"config\": {
+              \"startDate\": \"$START_DATE\",
+              \"endDate\": \"$END_DATE\"
+            },
+            \"contributors\": $(echo $RESPONSE | jq '.contributors'),
+            \"lastUpdated\": \"$NOW\"
+          }" > data/leaderboard.json
+          
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/leaderboard.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update leaderboard stats"
+          git push
